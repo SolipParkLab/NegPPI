@@ -282,9 +282,7 @@ run_coabundance_analysis <- function(
       sub(
         barcode_suffix,
         "",
-        res_gene[
-          [mutation_barcode_column]
-        ]
+        res_gene[[mutation_barcode_column]]
       )
     )
 
@@ -612,9 +610,7 @@ for (cancer in cancer_types) {
     cancer = cancer,
     tissue = "normal",
     expr_matrix =
-      normal_tumor_data[
-        [cancer]
-      ]$normal,
+      normal_tumor_data[[cancer]]$normal,
     maf = maf
   )
 
@@ -627,16 +623,12 @@ for (cancer in cancer_types) {
     cancer = cancer,
     tissue = "tumor",
     expr_matrix =
-      normal_tumor_data[
-        [cancer]
-      ]$tumor,
+      normal_tumor_data[[cancer]]$tumor,
     maf = maf
   )
 
 
-  all_results[
-    [cancer]
-  ] <- list(
+  all_results[[cancer]] <- list(
     normal = normal_result,
     tumor = tumor_result
   )
@@ -665,3 +657,4 @@ message(
 message(
   "\nNormal-tumor co-abundance analysis completed."
 )
+
