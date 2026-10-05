@@ -1,0 +1,22 @@
+# Large/raw data
+data/raw/
+*.maf
+*.tsv.gz
+*.zip
+*.rds
+*.RData
+*.Rhistory
+
+# Keep the RefSeq-to-HGNC mapping used in this study
+!data/reference/p2s.rds
+
+# Results generated locally
+results/*
+!results/README.md
+
+# Figures generated locally
+figures/*
+
+# OS/editor files
+.DS_Store
+.Rproj.user/
