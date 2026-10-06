@@ -1,0 +1,404 @@
+# CPTAC co-abundance analysis
+
+Reproducible analysis code for studying protein co-abundance architecture,
+normal-to-tumor association changes, and mutation-associated co-abundance
+changes across CPTAC cancer cohorts.
+
+The analyses integrate CPTAC proteomic and somatic mutation data with
+AlphaMissense predictions to examine:
+
+- mutation-stratified protein co-abundance associations;
+- differences in co-abundance structure between adjacent normal and tumor tissues;
+- normal-derived co-abundance modules and inter-module association changes;
+- cancer hallmark representation of module-level changes;
+- mutation-associated strengthening and weakening of co-abundance associations;
+- differences between Pre-existing and Tumor-acquired tumor associations; and
+- query-centric patterns of pan-cancer association change.
+
+## Repository structure
+
+```text
+CPTAC_coabundance/
+├── README.md
+├── R/
+│   ├── 01_mutation_stratified_coabundance.R
+│   ├── 02_prepare_normal_tumor_proteomes.R
+│   ├── 03_normal_tumor_coabundance.R
+│   ├── 04_module_architecture.R
+│   ├── 05_module_pair_rewiring.R
+│   ├── 06_hallmark_rewiring.R
+│   ├── 07_pancancer_mutation_rewiring.R
+│   ├── 08_individual_cancer_mutation_rewiring.R
+│   ├── 09_mutation_rewiring_by_association_origin.R
+│   └── 10_pancancer_query_centric_association_change.R
+├── data/
+│   ├── README.md
+│   ├── reference/
+│   │   └── p2s.rds
+│   └── raw/
+├── results/
+└── figures/
+```
+
+Large external input datasets and generated analysis results are not tracked in
+the repository.
+
+See [`data/README.md`](data/README.md) for input data sources, expected file
+names, and directory structure.
+
+## Analysis overview
+
+### 1. Pan-cancer mutation-stratified co-abundance
+
+`R/01_mutation_stratified_coabundance.R`
+
+Calculates mutation-stratified query-target protein co-abundance associations
+using the CPTAC harmonized pan-cancer tumor proteome.
+
+For each query gene, the wild-type group excludes samples carrying any somatic
+mutation in that query gene. Missense-mutant samples are stratified using
+AlphaMissense classifications.
+
+For each query-target pair, the analysis estimates:
+
+- WT and MUT Pearson correlations;
+- WT and MUT sample counts;
+- regression slopes; and
+- the query abundance × mutation-group interaction from
+
+```text
+target abundance ~ query abundance * mutation group
+```
+
+Multiple-testing adjustment is performed using the Benjamini-Hochberg method.
+
+### 2. Adjacent-normal and tumor proteome preparation
+
+`R/02_prepare_normal_tumor_proteomes.R`
+
+Prepares cancer-type-specific proteome matrices for seven cohorts with
+available adjacent normal tissue:
+
+- BRCA
+- ccRCC
+- COAD
+- LSCC
+- LUAD
+- PDAC
+- UCEC
+
+Cohort-specific specimen annotations are used to distinguish adjacent normal
+and tumor samples and harmonize participant identifiers.
+
+### 3. Normal-tumor co-abundance analysis
+
+`R/03_normal_tumor_coabundance.R`
+
+Calculates query-specific WT co-abundance correlations separately in adjacent
+normal and tumor tissues.
+
+For each query gene, samples carrying any somatic mutation in that query gene
+are excluded from both tumor and corresponding adjacent-normal analyses.
+
+Associations are classified as:
+
+```text
+Positive: r >= 0.5 and FDR < 0.05
+Negative: r <= -0.5 and FDR < 0.05
+n.s.: otherwise
+```
+
+Normal and tumor analyses retain the same directional `query -> target`
+definition.
+
+### 4. Normal-derived module architecture
+
+`R/04_module_architecture.R`
+
+Constructs co-abundance modules from significant positive associations in
+adjacent normal tissues.
+
+For each cancer type:
+
+1. positive normal associations are ranked by Pearson correlation;
+2. the top 50 partners per query are retained;
+3. an undirected weighted graph is constructed; and
+4. Louvain community detection is applied.
+
+Modules are inferred only from adjacent-normal positive associations.
+
+Significant positive and negative associations from both adjacent normal and
+tumor tissues are subsequently projected onto the same normal-derived module
+architecture.
+
+### 5. Inter-module association changes
+
+`R/05_module_pair_rewiring.R`
+
+Quantifies changes in the number of inter-module co-abundance associations
+between adjacent normal and tumor tissues.
+
+Only modules containing at least 50 proteins are included in the module-pair
+analysis.
+
+For each module pair, the analysis reports:
+
+- number of normal associations;
+- number of tumor associations;
+- absolute change;
+- fractional change; and
+- within-cancer rewiring rank.
+
+### 6. Cancer hallmark analysis
+
+`R/06_hallmark_rewiring.R`
+
+Maps normal-derived co-abundance modules to cancer hallmark annotations and
+quantifies hallmark-pair association changes.
+
+Module hallmark loadings are calculated from the overlap between module
+proteins and hallmark gene sets.
+
+### 7. Pan-cancer mutation-associated rewiring
+
+`R/07_pancancer_mutation_rewiring.R`
+
+Classifies mutation-associated association changes from the pan-cancer results
+generated by script 01.
+
+Only WT baseline positive or negative associations are considered.
+
+A mutation-associated change is considered significant when the nominal
+interaction P value is < 0.05.
+
+For significant changes:
+
+```text
+Positive WT baseline:
+    positive interaction estimate -> Strengthening
+    negative interaction estimate -> Weakening
+
+Negative WT baseline:
+    negative interaction estimate -> Strengthening
+    positive interaction estimate -> Weakening
+```
+
+Benign and pathogenic AlphaMissense classes are analyzed separately.
+
+### 8. Cancer-type-specific mutation-associated rewiring
+
+`R/08_individual_cancer_mutation_rewiring.R`
+
+Repeats the mutation-stratified co-abundance analysis independently within each
+CPTAC cancer cohort.
+
+This is a separate analysis from the pan-cancer results generated by script 01.
+
+The script additionally calculates pairwise-complete WT and MUT sample counts
+for retained baseline positive and negative associations.
+
+### 9. Mutation rewiring by association origin
+
+`R/09_mutation_rewiring_by_association_origin.R`
+
+Integrates the cancer-specific mutation-rewiring results from script 08 with
+the adjacent-normal and tumor association histories from script 03.
+
+Association origin is defined exclusively from the normal-to-tumor transition:
+
+```text
+Positive -> Positive    Pre-existing
+Negative -> Negative    Pre-existing
+
+n.s. -> Positive        Tumor-acquired
+n.s. -> Negative        Tumor-acquired
+
+Positive -> Negative    Sign-switched
+Negative -> Positive    Sign-switched
+
+Positive/Negative -> n.s.    Lost
+n.s. -> n.s.                 n.s.-to-n.s.
+```
+
+The mutation-analysis baseline association and the tumor association from the
+normal-tumor analysis are retained as separate variables.
+
+A binomial logistic model is used to compare mutation-associated weakening
+between Pre-existing and Tumor-acquired associations while accounting for
+baseline association sign, mutation class, and cancer type.
+
+### 10. Pan-cancer query-centric association-change analysis
+
+`R/10_pancancer_query_centric_association_change.R`
+
+Performs a query-centric analysis of mutation-associated association-change
+direction using the pan-cancer results.
+
+WT baseline associations must satisfy the correlation and FDR thresholds used
+throughout the study.
+
+In contrast to script 07, no significance threshold is imposed on the WT-to-MUT
+interaction when determining association-change direction.
+
+All evaluable interaction estimates are classified as:
+
+```text
+Positive WT baseline:
+    interaction estimate > 0 -> Strengthening
+    interaction estimate < 0 -> Weakening
+
+Negative WT baseline:
+    interaction estimate < 0 -> Strengthening
+    interaction estimate > 0 -> Weakening
+```
+
+For each query, mutation class, and baseline association sign, the script
+calculates the fractions of strengthened and weakened partner associations.
+
+Pathogenic and benign mutations are then compared separately for positive and
+negative WT baseline associations.
+
+## Analysis workflow
+
+The principal dependencies among scripts are:
+
+```text
+01 mutation-stratified co-abundance
+├── 07 pan-cancer mutation rewiring
+│   └── 10 pan-cancer query-centric association change
+└── 08 individual-cancer mutation rewiring
+    └── 09 mutation rewiring by association origin
+
+02 normal/tumor proteome preparation
+└── 03 normal/tumor co-abundance
+    ├── 04 module architecture
+    │   └── 05 module-pair rewiring
+    │       └── 06 hallmark rewiring
+    └── 09 mutation rewiring by association origin
+```
+
+## Running the analyses
+
+Scripts are intended to be run from the repository root.
+
+For example:
+
+```bash
+Rscript R/01_mutation_stratified_coabundance.R
+```
+
+followed by the downstream scripts required for the analysis of interest.
+
+The full workflow is:
+
+```bash
+Rscript R/01_mutation_stratified_coabundance.R
+Rscript R/02_prepare_normal_tumor_proteomes.R
+Rscript R/03_normal_tumor_coabundance.R
+Rscript R/04_module_architecture.R
+Rscript R/05_module_pair_rewiring.R
+Rscript R/06_hallmark_rewiring.R
+Rscript R/07_pancancer_mutation_rewiring.R
+Rscript R/08_individual_cancer_mutation_rewiring.R
+Rscript R/09_mutation_rewiring_by_association_origin.R
+Rscript R/10_pancancer_query_centric_association_change.R
+```
+
+Scripts 01 and 02 initiate two partially independent analysis branches, so the
+entire sequence does not need to be run when only one branch is required.
+
+## Input data
+
+External raw data are not redistributed with this repository.
+
+Detailed data sources, expected file names, directory layout, and expected
+sample counts are provided in:
+
+[`data/README.md`](data/README.md)
+
+The RefSeq-to-HGNC mapping used by the analyses is included as:
+
+```text
+data/reference/p2s.rds
+```
+
+## Output files
+
+Generated results are written under:
+
+```text
+results/
+```
+
+and generated figures, where applicable, are written under:
+
+```text
+figures/
+```
+
+Large generated outputs are excluded from version control.
+
+Key intermediate and summary outputs are written as tab-separated text files
+to facilitate downstream inspection and reuse.
+
+## Reproducibility
+
+Analyses use fixed random seeds where stochastic procedures are involved.
+
+For the normal-derived module analysis, Louvain community detection is run with:
+
+```text
+seed = 1
+resolution = 1.5
+```
+
+Association significance is generally defined using:
+
+```text
+|Pearson r| >= 0.5
+FDR < 0.05
+```
+
+unless explicitly stated otherwise in the corresponding analysis script.
+
+Mutation-associated interaction analyses distinguish between:
+
+- threshold-defined significant mutation-associated rewiring in script 07; and
+- direction-only association changes without an interaction-significance
+  threshold in script 10.
+
+## Software
+
+The analyses are implemented in R.
+
+Major packages used across the workflow include:
+
+```text
+data.table
+dplyr
+purrr
+pbmcapply
+igraph
+emmeans
+```
+
+Additional packages are loaded by individual scripts where required.
+
+For exact package versions used in the final analysis, see the software
+environment information accompanying the manuscript/release.
+
+## Data availability
+
+CPTAC proteomic and mutation datasets should be obtained from the original
+CPTAC data resources.
+
+AlphaMissense predictions should be obtained from the original AlphaMissense
+distribution.
+
+External datasets are subject to the access conditions and licenses of their
+respective providers.
+
+## Citation
+
+Citation information will be added upon publication of the associated
+manuscript.
